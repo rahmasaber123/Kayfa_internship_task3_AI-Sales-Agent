@@ -47,16 +47,7 @@ Isolated-env/
 *.env
 secrets.json
 
-# Local Data and Knowledge Base files
-data/
-*.db
-*.sqlite3
-*.json
-*.md
-!README.md
-!skill.md
-!/skill.md
-!**/skill.md
+
 # Jupyter Notebooks
 *.ipynb
 .ipynb_checkpoints/

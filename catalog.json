@@ -1,0 +1,30 @@
+{
+  "educational_tracks": [
+    { "name": "Data Science", "videos": 736, "hours": "75:31", "courses_count": 12, "price_usd": 250 },
+    { "name": "Security Operations Center (SOC)", "videos": 401, "hours": "44:52", "courses_count": 9, "price_usd": 250 },
+    { "name": "Web Development", "videos": 468, "hours": "45:45", "courses_count": 9, "price_usd": 200 },
+    { "name": "Data Analysis", "videos": 404, "hours": "38:54", "courses_count": 8, "price_usd": 180 },
+    { "name": "Frontend Track", "videos": 313, "hours": "28:12", "courses_count": 6, "price_usd": 100 },
+    { "name": "Backend Track", "videos": 244, "hours": "23:34", "courses_count": 6, "price_usd": 100 },
+    { "name": "Artificial Intelligence Fundamentals", "videos": 105, "hours": "8:44", "courses_count": 3, "price_usd": 65 },
+    { "name": "Fundamentals of Graphics and Motion", "videos": 68, "hours": "6:14", "courses_count": 2, "price_usd": 65 },
+    { "name": "Video Editing Track", "videos": 23, "hours": "6:8", "courses_count": 1, "price_usd": 45 },
+    { "name": "Crash Courses", "videos": 35, "hours": "2:7", "courses_count": 3, "price_usd": 25 }
+  ],
+  "individual_courses": [
+    { "name": "Business Statistics", "videos": 137, "hours": "12:38", "price_usd": 65, "instructor": "Prof. Mostafa Elhosseini" },
+    { "name": "MS SQL Server Programming", "videos": 87, "hours": "10:3", "price_usd": 35, "instructor": "Hagar Ibrahiem" },
+    { "name": "Data Visualization by Power Bi", "videos": 79, "hours": "6:13", "price_usd": 30, "instructor": "Eman Raslan" },
+    { "name": "Network and Security Fundamentals", "videos": 94, "hours": "4:48", "price_usd": 30, "instructor": "Ahmed Shalaby" },
+    { "name": "HTML", "videos": 42, "hours": "5:12", "price_usd": 30, "instructor": "Mohamed Ali" },
+    { "name": "Fundamentals of Graphic Design", "videos": 46, "hours": "2:35", "price_usd": 30, "instructor": "Heba Hashem Abdeen" },
+    { "name": "Microsoft Windows Active Directory", "videos": 74, "hours": "6:21", "price_usd": 35, "instructor": "Abdelbaky Shehata" },
+    { "name": "Linux Fundamentals", "videos": 32, "hours": "5:19", "price_usd": 40, "instructor": "Yehia kandeel" },
+    { "name": "Splunk SIEM Case Studies", "videos": 19, "hours": "2:36", "price_usd": 50, "instructor": "Motasem Hamdan" },
+    { "name": "How AI & Chat GPT Work", "videos": 29, "hours": "2:1", "price_usd": 20, "instructor": "Mohammad Thabet" },
+    { "name": "Introduction to JavaScript", "videos": 22, "hours": "2:35", "price_usd": 20, "instructor": "Mohamed Ali" },
+    { "name": "Introduction to TypeScript", "videos": 28, "hours": "2:33", "price_usd": 20, "instructor": "Ahmed Saber" },
+    { "name": "Introduction to Marketing", "videos": 12, "hours": "0:57", "price_usd": 15, "instructor": "Walid Saed" },
+    { "name": "Career Planning", "videos": 5, "hours": "0:18", "price_usd": 15, "instructor": "Mariam Elgaby" }
+  ]
+}
