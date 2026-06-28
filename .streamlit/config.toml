@@ -1,0 +1,33 @@
+# [server]
+# headless = true
+# runOnSave = false
+
+# [browser]
+# gatherUsageStats = false
+
+# [theme]
+# base = "light"
+# primaryColor = "#3B47C8"
+# backgroundColor = "#FFFFFF"
+# secondaryBackgroundColor = "#F5F6FA"
+# textColor = "#1A1F4D"
+# font = "sans serif"
+# [client]
+# showSidebarNavigation = false
+[server]
+headless = true
+runOnSave = false
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#3B47C8"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F6FA"
+textColor = "#1A1F4D"
+font = "sans serif"
+
+[client]
+showSidebarNavigation = false
