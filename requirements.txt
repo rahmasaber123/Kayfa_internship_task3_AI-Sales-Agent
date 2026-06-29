@@ -1,7 +1,7 @@
 # Kayfa Sales Agent — Python dependencies
 
 # ─── Core agent stack ───
-pydantic-ai-slim[openai,groq]>=0.0.40
+pydantic-ai[openai,groq]==2.0.0
 pydantic>=2.6
 openai>=1.30
 
@@ -16,6 +16,7 @@ pymongo>=4.7
 python-dotenv>=1.0
 pandas>=2.0
 pyarrow>=15.0
+plotly>=5.0.0
 
 # ─── UI ───
 streamlit>=1.31

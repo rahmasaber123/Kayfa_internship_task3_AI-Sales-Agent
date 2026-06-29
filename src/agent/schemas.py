@@ -24,10 +24,12 @@ class AgentReply(BaseModel):
     """What the agent returns on every turn."""
     reply: str = Field(description="The message to show the user, in their language/dialect")
     temperature: Temperature = Field(
-        default="cold",
+        default="warm",
         description="Lead temperature after this turn",
     )
     profile_delta: ProfileDelta = Field(
         default_factory=ProfileDelta,
         description="Profile fields you learned or inferred this turn",
     )
+class Config:
+    extra = "ignore" 

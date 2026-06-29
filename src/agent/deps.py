@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Any, Optional
+from dataclasses import dataclass, field
+from typing import Any, Optional, Dict, List
 from src.kb.loader import KnowledgeBase
 from src.kb.retriever import HybridRetriever
 from src.memory.profile import UserProfile
@@ -18,3 +18,7 @@ class AgentDeps:
     dialect: Optional[str] = None
     competitor_flag: Optional[str] = None
     scenario: str = "ad_hoc"
+    
+    # 👈 Added isolated trace and tool counts
+    trace_buffer: List[Dict[str, Any]] = field(default_factory=list)
+    tool_call_counts: Dict[str, int] = field(default_factory=dict)

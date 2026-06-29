@@ -12,8 +12,7 @@ def load(name: str) -> str:
 
 @cache
 def build_system_prompt() -> str:
-    """The static system prompt — one consolidated file, no stitching."""
-    return load("snippets/skills")
+    return load("snippets/system_prompt") + "\n\n---\n\n" + load("snippets/skills")
 
 
 def reload_all() -> None:

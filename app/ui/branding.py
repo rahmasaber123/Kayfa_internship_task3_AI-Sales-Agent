@@ -50,18 +50,18 @@ def _inject_css():
     
     /* استخدام auto يجعل المتصفح يكتشف اللغة تلقائياً */
     [data-testid="stChatMessage"] {{
-        direction: auto !important;
-        text-align: start !important;
+       text-align: right !important;
+      direction: rtl !important;
     }}
     
     div[data-testid="stChatMessageContent"] {{
-        direction: auto !important;
-        text-align: start !important;
+        text-align: right !important;
+       direction: rtl !important;
     }}
 
     .custom-chat-bubble {{
-        direction: auto !important;
-        text-align: start !important;
+       text-align: right !important;
+       direction: rtl !important;
     }}
 
     /* 1. LINKS AS BLUE BUTTONS */

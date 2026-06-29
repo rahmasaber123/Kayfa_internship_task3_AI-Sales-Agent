@@ -39,6 +39,10 @@ def setup_collections() -> dict[str, int]:
     db[COL_EVENTS].create_index([("session_id", ASCENDING), ("timestamp", DESCENDING)])
     db[COL_EVENTS].create_index([("type", ASCENDING)])
     db[COL_KB_CHUNKS].create_index([("source", ASCENDING)])
+    # ADD after: db[COL_EVENTS].create_index([("type", ASCENDING)])
+    db["usage_logs"].create_index([("user_id", ASCENDING), ("timestamp", DESCENDING)])
+    db["usage_logs"].create_index([("conversation_id", ASCENDING)])
+    db["usage_logs"].create_index([("session_id", ASCENDING)])
 
     return {c: db[c].count_documents({}) for c in [
         COL_SESSIONS, COL_MESSAGES, COL_PROFILES, COL_SUMMARIES,

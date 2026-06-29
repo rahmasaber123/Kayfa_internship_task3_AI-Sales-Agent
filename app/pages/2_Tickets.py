@@ -4,6 +4,10 @@ import re
 from pathlib import Path
 from datetime import datetime, timezone
 import html as _html
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from collections import Counter
 
 # 1. Force both the repo root and the app folder into the system path
 repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
@@ -33,8 +37,11 @@ if st.session_state.get("role") != "admin":
 # 4. عرض القائمة الجانبية (ONLY CALLED ONCE)
 render_sidebar()
 
-st.title("🎫 CRM Tickets Dashboard")
-st.markdown("---")
+# Initialize session states safely
+if 'ticket_filter' not in st.session_state:
+    st.session_state.ticket_filter = 'all'
+if 'ticket_search' not in st.session_state:
+    st.session_state.ticket_search = ''
 
 @st.cache_resource(show_spinner="Connecting…")
 def get_db():
@@ -96,51 +103,38 @@ warm_display = warm + undefined_temp
 st.markdown("<h1 style='text-align: right; direction: rtl;'>🎫 لوحة إدارة التذاكر و الـ CRM</h1>", unsafe_allow_html=True)
 st.markdown(
     '<p style="color:#6B7280; margin-top:-10px; text-align: right; direction: rtl;">'
-    'تذاكر العملاء المستخرجة بواسطة الـ الذكاء الاصطناعي والتصعيدات البشرية الفورية. تظهر التذاكر الساخنة أولاً.</p>',
+    'تذاكر العملاء المستخرجة بواسطة الذكاء الاصطناعي والتصعيدات البشرية الفورية. تظهر التذاكر الساخنة أولاً.</p>',
     unsafe_allow_html=True,
 )
 
 # ─────────────────────────────────────────────────────────────────────
 # CRM Stats Columns
 # ─────────────────────────────────────────────────────────────────────
-st.markdown("<div dir='rtl' style='margin-bottom: 10px;'>", unsafe_allow_html=True)
-stat_col1, stat_col2, stat_col3, stat_col4, stat_col5 = st.columns(5)
+st.markdown("<div dir='rtl'>", unsafe_allow_html=True)
+f1, f2, f3, f4, f5 = st.columns(5)
+_active = st.session_state.ticket_filter
 
-with stat_col1:
-    st.markdown(
-        f'<div class="crm-stat-box total-box">'
-        f'<div class="crm-stat-title">إجمالي التذاكر</div>'
-        f'<div class="crm-stat-num">{n_total}</div>'
-        f'</div>', unsafe_allow_html=True
-    )
-with stat_col2:
-    st.markdown(
-        f'<div class="crm-stat-box hot-box">'
-        f'<div class="crm-stat-title">عملاء ساخنين 🔥</div>'
-        f'<div class="crm-stat-num">{hot}</div>'
-        f'</div>', unsafe_allow_html=True
-    )
-with stat_col3:
-    st.markdown(
-        f'<div class="crm-stat-box warm-box">'
-        f'<div class="crm-stat-title">عملاء مهتمين 🔹</div>'
-        f'<div class="crm-stat-num">{warm_display}</div>'
-        f'</div>', unsafe_allow_html=True
-    )
-with stat_col4:
-    st.markdown(
-        f'<div class="crm-stat-box cold-box">'
-        f'<div class="crm-stat-title">عملاء باردين ❄️</div>'
-        f'<div class="crm-stat-num">{cold}</div>'
-        f'</div>', unsafe_allow_html=True
-    )
-with stat_col5:
-    st.markdown(
-        f'<div class="crm-stat-box escal-box">'
-        f'<div class="crm-stat-title">تصعيد بشري ⚠️</div>'
-        f'<div class="crm-stat-num">{n_esc}</div>'
-        f'</div>', unsafe_allow_html=True
-    )
+def _btn(col, label, key, count, fval):
+    active_style = "primary" if _active == fval else "secondary"
+    with col:
+        if st.button(f"{label}\n**{count}**", key=key,
+                     use_container_width=True, type=active_style):
+            st.session_state.ticket_filter = fval
+            st.rerun()
+
+_btn(f1, "📋 الكل",           "f_all",  n_total,       'all')
+_btn(f2, "🔥 ساخن",           "f_hot",  hot,           'hot')
+_btn(f3, "🔹 مهتم",           "f_warm", warm_display,  'warm')
+_btn(f4, "❄️ بارد",           "f_cold", cold,          'cold')
+_btn(f5, "⚠️ تصعيد",         "f_esc",  n_esc,         'escalation')
+st.markdown("</div>", unsafe_allow_html=True)
+
+# Search Input
+st.markdown("<div dir='rtl' style='margin-top: 15px; margin-bottom: 15px;'>", unsafe_allow_html=True)
+st.session_state.ticket_search = st.text_input(
+    "", placeholder="🔍 ابحث بالاسم أو الهاتف أو البريد...",
+    label_visibility="collapsed"
+)
 st.markdown("</div>", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────
@@ -178,14 +172,11 @@ def _chip(text: str, color: str = "#E8ECFF", text_color: str = "#1A1F4D") -> str
 def render_lead_inner_body(t: dict) -> str:
     contact     = t.get("contact") or {}
     
-    # --- FALLBACK LOGIC ---
-    # Look at root 'temperature' first (new), then fallback to nested (old)
     temp_val = t.get("temperature")
     if not temp_val and "lead_data" in t and isinstance(t["lead_data"], dict):
         temp_val = t["lead_data"].get("temperature")
     
     temp = str(temp_val or "warm").lower()
-    # ----------------------
 
     ticket_id   = _esc(t.get("ticket_id", ""))
     name        = _esc(contact.get("name") or "زائر غير مسجل")
@@ -389,36 +380,56 @@ st.markdown(
 # ─────────────────────────────────────────────────────────────────────
 # Tabs Layout & Expandable Container Generation
 # ─────────────────────────────────────────────────────────────────────
-tab_leads, tab_esc = st.tabs([f"🔥 العملاء المستهدفين Leads ({n_leads})", f"⚠️ طلبات التصعيد البشري ({n_esc})"])
+tab_leads, tab_esc, tab_analytics = st.tabs([
+    f"🔥 العملاء المستهدفين ({n_leads})",
+    f"⚠️ التصعيدات ({n_esc})",
+    "📊 التحليلات"
+])
 
+# Tab 1: Leads
 with tab_leads:
-    leads = list(
-        db.tickets.find({"type": "lead"}, {"_id": 0})
-        .sort([("created_at", -1)])
-    )
+    lead_query = {"type": "lead"}
+    fval = st.session_state.ticket_filter
+    if fval in ('hot', 'warm', 'cold'):
+        lead_query["$or"] = [
+            {"temperature": {"$regex": f"^{fval}$", "$options": "i"}},
+            {"lead_data.temperature": {"$regex": f"^{fval}$", "$options": "i"}}
+        ]
+    leads = list(db.tickets.find(lead_query, {"_id": 0}).sort("created_at", -1))
+
+    # Apply search filter
+    srch = st.session_state.ticket_search.strip().lower()
+    if srch:
+        leads = [t for t in leads if
+                 srch in str(t.get("contact", {}).get("name") or "").lower() or
+                 srch in str(t.get("contact", {}).get("phone") or "").lower() or
+                 srch in str(t.get("contact", {}).get("email") or "").lower()]
+
+    # Render Leads List
     if not leads:
-        st.info("لا توجد تذاكر عملاء (Leads) بعد.")
+        st.info("لا توجد تذاكر عملاء مهتمين حالياً مطابقة للبحث أو التصفية.")
     else:
         st.markdown('<div dir="rtl">', unsafe_allow_html=True)
         for t in leads:
             contact = t.get("contact") or {}
             name = _esc(contact.get("name") or "زائر غير مسجل")
+            t_id = _esc(t.get("ticket_id", ""))
             
-            # --- SAME FALLBACK LOGIC ---
+            # Extract lead temperature with root/legacy fallback
             temp_val = t.get("temperature")
             if not temp_val and "lead_data" in t and isinstance(t["lead_data"], dict):
                 temp_val = t["lead_data"].get("temperature")
             temp = str(temp_val or "warm").lower()
-            # ---------------------------
             
-            t_id = _esc(t.get("ticket_id", ""))
+            # Temperature styling
+            emoji = "🔥" if temp == "hot" else ("🔹" if temp == "warm" else "❄️")
+            temp_label = "ساخن" if temp == "hot" else ("مهتم" if temp == "warm" else "بارد")
             
-            temp_icon = "🔥 ساخن جداً" if temp == "hot" else "🔹 مهتم" if temp == "warm" else "❄️ بارد"
-            
-            with st.expander(f"👤 {name} | {temp_icon} (ID: {t_id})", expanded=False):
+            with st.expander(f"{emoji} عميل {temp_label}: {name} | (ID: {t_id})", expanded=(temp == "hot")):
                 st.markdown(render_lead_inner_body(t), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
+# Tab 2: Escalations
 with tab_esc:
     escalations = list(
         db.tickets.find({"type": "escalation"}, {"_id": 0})
@@ -430,9 +441,254 @@ with tab_esc:
         st.markdown('<div dir="rtl">', unsafe_allow_html=True)
         for t in escalations:
             contact = t.get("contact") or {}
-            name = _esc(contact.get("name") or "—")
+            name = _esc(contact.get("contact", {}).get("name") or "—")
             t_id = _esc(t.get("ticket_id", ""))
             
             with st.expander(f"🚨 تصعيد: {name} | (ID: {t_id})", expanded=False):
                 st.markdown(render_escalation_inner_body(t), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
+
+# Tab 3: Analytics
+with tab_analytics:
+    st.markdown("""
+    <div style="direction:rtl;text-align:right;margin-bottom:20px;">
+        <h2 style="color:#1A1F4D;font-weight:800;">📊 لوحة التحليلات التفاعلية</h2>
+        <p style="color:#6B7280;font-size:13px;">بيانات حية من المحادثات والتذاكر والعملاء</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Fetch all data ──────────────────────────────────────────
+    all_tickets  = list(db.tickets.find({}, {"_id": 0}))
+    
+    # Fetch sessions with extra fields for courses analysis
+    all_sessions = list(db.sessions.find({}, {
+        "_id": 0, "created_at": 1, "language": 1, "dialect": 1, 
+        "products_of_interest": 1, "interested_courses": 1
+    }))
+    
+    # Optional: fetch conversations if stored in a separate collection
+    all_conversations = []
+    if "conversations" in db.list_collection_names():
+        all_conversations = list(db.conversations.find({}, {
+            "_id": 0, "products_of_interest": 1, "interested_courses": 1
+        }))
+
+    leads_only = [t for t in all_tickets if t.get("type") == "lead"]
+    escs_only  = [t for t in all_tickets if t.get("type") == "escalation"]
+
+    # ── Row 1: KPI metrics ──────────────────────────────────────
+    k1, k2, k3 = st.columns(3)
+    k1.metric("إجمالي التذاكر",    n_total)
+    k2.metric("معدل التحويل 🔥",  f"{round(hot/n_leads*100)}%" if n_leads else "0%")
+    k3.metric("إجمالي الجلسات",   len(all_sessions))
+
+    st.markdown("---")
+
+    # ── Row 2: Lead temp pie + Lead vs Esc bar ──────────────────
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### 🌡️ توزيع درجة حرارة العملاء")
+        temp_counts = {"ساخن 🔥": hot, "مهتم 🔹": warm_display, "بارد ❄️": cold}
+        fig_pie = px.pie(
+            names=list(temp_counts.keys()),
+            values=list(temp_counts.values()),
+            color_discrete_sequence=["#EF4444", "#3B82F6", "#9CA3AF"],
+            hole=0.4,
+        )
+        fig_pie.update_layout(
+            margin=dict(t=10, b=10, l=10, r=10),
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Cairo, sans-serif"),
+        )
+        fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    with col2:
+        st.markdown("#### 📋 تذاكر Leads مقابل التصعيدات")
+        fig_bar = px.bar(
+            x=["عملاء Leads", "تصعيدات"],
+            y=[n_leads, n_esc],
+            color=["عملاء Leads", "تصعيدات"],
+            color_discrete_map={"عملاء Leads": "#3B47C8", "تصعيدات": "#DC2626"},
+            text_auto=True,
+        )
+        fig_bar.update_layout(
+            margin=dict(t=10, b=10, l=10, r=10),
+            showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Cairo, sans-serif"),
+            yaxis=dict(showgrid=True, gridcolor="#F3F4F6"),
+            xaxis=dict(showgrid=False),
+        )
+        fig_bar.update_traces(marker_line_width=0, textfont_size=14)
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+    st.markdown("---")
+
+    # ── Row 3: Most searched courses/diplomas ───────────────────
+    st.markdown("#### 🎓 أكثر الكورسات والدبلومات طلباً")
+    
+    # Collect requested courses from both Tickets AND Sessions/Conversations
+    all_products = []
+    
+    # 1. From Tickets (Leads)
+    for t in leads_only:
+        prods = t.get("products_of_interest") or []
+        all_products.extend([p for p in prods if p])
+        
+    # 2. From all Sessions
+    for s in all_sessions:
+        prods = s.get("products_of_interest") or s.get("interested_courses") or []
+        all_products.extend([p for p in prods if p])
+        
+    # 3. From all Conversations (if separate)
+    for c in all_conversations:
+        prods = c.get("products_of_interest") or c.get("interested_courses") or []
+        all_products.extend([p for p in prods if p])
+
+    if all_products:
+        prod_counts = Counter(all_products).most_common(10)
+        prod_names  = [p[0] for p in prod_counts]
+        prod_vals   = [p[1] for p in prod_counts]
+
+        fig_prod = px.bar(
+            x=prod_vals, y=prod_names,
+            orientation='h',
+            color=prod_vals,
+            color_continuous_scale=["#E8ECFF", "#3B47C8"],
+            text=prod_vals,
+        )
+        fig_prod.update_layout(
+            margin=dict(t=10, b=10, l=10, r=10),
+            coloraxis_showscale=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Cairo, sans-serif"),
+            yaxis=dict(autorange="reversed", showgrid=False),
+            xaxis=dict(showgrid=True, gridcolor="#F3F4F6"),
+            height=max(300, len(prod_names) * 42),
+        )
+        fig_prod.update_traces(textposition='outside', marker_line_width=0)
+        st.plotly_chart(fig_prod, use_container_width=True)
+    else:
+        st.info("لا توجد بيانات منتجات بعد.")
+
+    st.markdown("---")
+
+    # ── Row 4: Language pie + Dialect bar ───────────────────────
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.markdown("#### 🌍 توزيع لغات العملاء")
+        lang_counts = Counter(t.get("language", "ar") for t in leads_only)
+        lang_map    = {"ar": "العربية", "en": "الإنجليزية"}
+        fig_lang = px.pie(
+            names=[lang_map.get(k, k) for k in lang_counts.keys()],
+            values=list(lang_counts.values()),
+            color_discrete_sequence=["#3B47C8", "#E77C24", "#10B981"],
+            hole=0.4,
+        )
+        fig_lang.update_layout(
+            margin=dict(t=10, b=10, l=10, r=10),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Cairo, sans-serif"),
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2),
+        )
+        fig_lang.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(fig_lang, use_container_width=True)
+
+    with col4:
+        st.markdown("#### 🗣️ توزيع اللهجات")
+        dialect_map = {
+            "egyptian": "مصرية 🇪🇬", "saudi": "سعودية 🇸🇦",
+            "syrian": "شامية 🇸🇾",   "msa": "فصحى",
+            "en": "إنجليزية"
+        }
+        dialect_counts = Counter(t.get("dialect", "msa") for t in leads_only)
+        d_names = [dialect_map.get(k, k) for k in dialect_counts.keys()]
+        d_vals  = list(dialect_counts.values())
+
+        fig_dialect = px.bar(
+            x=d_names, y=d_vals,
+            color=d_names,
+            color_discrete_sequence=["#3B47C8","#E77C24","#10B981","#6366F1","#F59E0B"],
+            text_auto=True,
+        )
+        fig_dialect.update_layout(
+            margin=dict(t=10, b=10, l=10, r=10),
+            showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Cairo, sans-serif"),
+            yaxis=dict(showgrid=True, gridcolor="#F3F4F6"),
+            xaxis=dict(showgrid=False),
+        )
+        fig_dialect.update_traces(marker_line_width=0)
+        st.plotly_chart(fig_dialect, use_container_width=True)
+
+    st.markdown("---")
+
+    # ── Row 5: Sessions over time ───────────────────────────────
+    st.markdown("#### 💬 الجلسات والمحادثات بمرور الوقت")
+    if all_sessions:
+        sess_df = pd.DataFrame(all_sessions)
+        if "created_at" in sess_df.columns:
+            sess_df["created_at"] = pd.to_datetime(sess_df["created_at"], errors="coerce")
+            sess_df = sess_df.dropna(subset=["created_at"])
+            sess_df["date"] = sess_df["created_at"].dt.date
+            daily = sess_df.groupby("date").size().reset_index(name="جلسات")
+
+            fig_sess = px.bar(
+                daily, x="date", y="جلسات",
+                color_discrete_sequence=["#3B47C8"],
+                text_auto=True,
+            )
+            fig_sess.update_layout(
+                margin=dict(t=10, b=10, l=10, r=10),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(family="Cairo, sans-serif"),
+                xaxis_title="التاريخ", yaxis_title="عدد الجلسات",
+                yaxis=dict(showgrid=True, gridcolor="#F3F4F6"),
+                xaxis=dict(showgrid=False),
+            )
+            fig_sess.update_traces(marker_line_width=0)
+            st.plotly_chart(fig_sess, use_container_width=True)
+    else:
+        st.info("لا توجد بيانات جلسات بعد.")
+
+    # ── Row 6: Buying signals word frequency ────────────────────
+    st.markdown("---")
+    st.markdown("#### 📈 أبرز إشارات الشراء")
+    all_signals = []
+    for t in leads_only:
+        all_signals.extend(t.get("buying_signals") or [])
+
+    if all_signals:
+        sig_counts = Counter(all_signals).most_common(8)
+        fig_sig = px.bar(
+            x=[s[1] for s in sig_counts],
+            y=[s[0] for s in sig_counts],
+            orientation='h',
+            color=[s[1] for s in sig_counts],
+            color_continuous_scale=["#D1FAE5", "#065F46"],
+            text=[s[1] for s in sig_counts],
+        )
+        fig_sig.update_layout(
+            margin=dict(t=10, b=10, l=10, r=10),
+            coloraxis_showscale=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Cairo, sans-serif"),
+            yaxis=dict(autorange="reversed", showgrid=False),
+            xaxis=dict(showgrid=True, gridcolor="#F3F4F6"),
+        )
+        fig_sig.update_traces(textposition='outside', marker_line_width=0)
+        st.plotly_chart(fig_sig, use_container_width=True)
+    else:
+        st.info("لا توجد إشارات شراء مسجّلة بعد.")

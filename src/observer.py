@@ -13,14 +13,17 @@ class Observer:
         self.db = get_db()
         self.collection = self.db["usage_logs"]
 
-    def record(self, user_id: str, session_id: str, turn_id: str, scenario: str, 
-               user_message: str, assistant_reply: str, model: str, 
-               tokens_in: int, tokens_out: int, used_rag: bool, 
-               is_cache_hit: bool = False, # <--- المتغير الجديد
-               trace: list = None, latency_ms: int = 0, language: str = "ar", errors: list = None) -> None:
-        
-        cost = (tokens_in * 0.00000015) + (tokens_out * 0.00000060) + (0.00004 if used_rag else 0)
-        
+    def record(self, user_id: str, session_id: str, turn_id: str, scenario: str,
+           user_message: str, assistant_reply: str, model: str,
+           tokens_in: int, tokens_out: int, used_rag: bool,
+           llm_cost: float = 0.0,
+           embedding_cost: float = 0.0,
+           tool_cost: float = 0.0,
+           cost: float = 0.0,
+           is_cache_hit: bool = False,
+           trace: list = None, latency_ms: int = 0,
+           language: str = "ar", errors: list = None) -> None:
+       
         event_doc = {
             "user_id": user_id,
             "session_id": session_id,
@@ -28,11 +31,18 @@ class Observer:
             "timestamp": datetime.now(timezone.utc),
             "scenario": scenario,
             "model": model,
+            "llm_cost":        llm_cost,
+            "embedding_cost":  embedding_cost,
+            "tool_cost":       tool_cost,
+            "input_tokens":  tokens_in,
+            "output_tokens": tokens_out,
+            "tokens_in":     tokens_in,   # legacy compat
+            "tokens_out":    tokens_out, 
+            "conversation_id": session_id,
+            "provider":        "openai",
             "language": language,
             "latency_ms": latency_ms,
             "cost": cost,
-            "tokens_in": tokens_in,
-            "tokens_out": tokens_out,
             "embedding_tokens": 2000 if used_rag else 0,
             "trace": trace or [],
             "user_message": user_message,

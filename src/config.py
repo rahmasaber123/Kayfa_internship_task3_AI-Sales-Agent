@@ -24,7 +24,7 @@ OPENAI_API_KEY = _require("OPENAI_API_KEY")
 MONGODB_URI = _require("MONGODB_URI")
 
 # ── Models ────────────────────────────────────────────────────────────
-MAIN_MODEL = "openai-chat:gpt-4o-mini"
+MAIN_MODEL = "openai:gpt-4o-mini"
 SUMMARIZER_MODEL = "groq:llama-3.1-8b-instant"
 EMBEDDING_MODEL = "text-embedding-3-large"
 EMBEDDING_DIMS = 1024
