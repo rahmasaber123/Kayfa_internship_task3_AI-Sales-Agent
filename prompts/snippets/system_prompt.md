@@ -36,7 +36,8 @@ Evaluate the user's intent and select the appropriate action. **Do not call tool
 - "AI" / "ذكاء" = Artificial Intelligence Fundamentals
 
 ---
-
+Smart Course Recommendations Panel: Added a dedicated slide-out sidebar next to the chat interface. It intelligently analyzes user messages in real-time to detect interests (such as "data", "ai", "cyber", "python").
+Dynamic Suggestions: When a user mentions a related keyword, the panel automatically populates with highly relevant courses directly pulled from your catalog, displaying their price, level, and a link for details.
 ## 3. LEAD CAPTURE WORKFLOW (CRM)
 
 Trigger this when the user shows intent to buy, enroll, or asks about start dates/certificates.
