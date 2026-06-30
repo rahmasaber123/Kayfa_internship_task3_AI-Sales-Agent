@@ -138,9 +138,13 @@ def get_all_resources():
     from src.kb.loader import load_knowledge_base
     from src.kb.retriever import HybridRetriever
     from src.memory.mongo import get_db as _get_db
-    return load_knowledge_base(), HybridRetriever(), _get_db(), Observer()
+    from src.agent.builder import build_agent # 🚀 Import agent builder here
+    
+    # 🌟 Cache the built agent alongside other heavy resources
+    return load_knowledge_base(), HybridRetriever(), _get_db(), Observer(), build_agent()
 
-kb, retriever, db, observer = get_all_resources()
+# Unpack the cached agent
+kb, retriever, db, observer, cached_agent = get_all_resources()
 
 def _new_session():
     from src.memory.sessions import create_session
@@ -343,7 +347,8 @@ elif len(st.session_state.display) > 0 and st.session_state.display[-1]["role"] 
                 reply, new_history, issues = asyncio.run(run_turn(
                     user_message=last_msg, 
                     deps=deps, 
-                    history=st.session_state.history
+                    history=st.session_state.history,
+                    agent=cached_agent # 🌟 Pass the cached agent here!
                 ))
                 reply_text = reply.reply
                 
