@@ -5,7 +5,6 @@ from pydantic_ai.usage import UsageLimits
 from pydantic_ai.exceptions import UsageLimitExceeded
 
 from src.config import MAIN_MODEL
-from src.agent.builder import build_agent
 from src.agent.deps import AgentDeps
 from src.agent.schemas import AgentReply
 from src.guardrails.input import validate_input, InputRejected
@@ -25,6 +24,7 @@ async def run_turn(
     history: list[ModelMessage] | None = None,
     observer: Observer | None = None,
     scenario: str = "ad_hoc",
+    agent = None, # 🌟 Accept cached agent here
 ) -> tuple[AgentReply, list[ModelMessage], list[str]]:
 
     issues: list[str] = []
@@ -51,14 +51,38 @@ async def run_turn(
     
     # 3.5 Complaint detection (Optimized)
     COMPLAINT_KEYWORDS = {"دفعت", "فلوسي", "مش شغال", "خدمة وحشة", "استرداد", "refund", "not working", "paid", "مش راضي", "عايز فلوسي"}
-    
-    # Use sets for O(1) lookup speed instead of list iteration
     if any(kw in clean for kw in COMPLAINT_KEYWORDS):
         clean = f"[SYSTEM: The user is expressing a complaint. Follow Escalation Flow 9-B. If you have not asked for contact info yet, do Step 1. If you have, do Step 2 and call escalate_to_human.]\n{clean}"
 
+    # 3.8 ⚡ FAST-PATH FOR GREETINGS (Skips the LLM completely)
+    GREETING_WORDS = {"hi", "hello", "hey", "مرحبا", "مرحباً", "هلا", "السلام عليكم", "السلام", "اهلا", "أهلا", "صباح الخير", "مساء الخير"}
+    clean_words = set(clean.lower().strip().split())
+    
+    # If the message is very short (1-3 words) and contains a greeting word
+    if len(clean_words) <= 3 and bool(clean_words & GREETING_WORDS):
+        greeting_text = (
+            "أهلاً بك في أكاديمية كَيفْ! ✨\n\n"
+            "نحن هنا لمساعدتك في بناء مستقبلك. نقدم أقوى المعسكرات والدبلومات في مجالات (Data Science, Cybersecurity, Full Stack, AI).\n\n"
+            "في أي مجال تود أن تبدأ رحلتك؟ وإذا كنت مستعداً للتسجيل في أحد مساراتنا، يسعدني جداً مساعدتك في إتمام ذلك فوراً!"
+        ) if lang == "ar" else (
+            "Welcome to Kayfa Academy! ✨\n\n"
+            "We offer top-tier programs in Data Science, Cybersecurity, Full Stack, and AI.\n\n"
+            "Which field are you most interested in? If you're ready to register, I'd be happy to help you set that up right away!"
+        )
+        reply = AgentReply(reply=greeting_text)
+        
+        # Save to history & return immediately
+        save_turn(user_id=deps.user_id, session_id=deps.session_id, role="assistant", content=reply.reply, language=lang)
+        touch_session(deps.session_id, language=lang, dialect=dialect)
+        return reply, history or [], issues
+
     # 4. Run agent
     t0 = time.perf_counter()
-    agent = build_agent()
+    
+    # 🌟 If agent was not passed in, build it now
+    if agent is None:
+        from src.agent.builder import build_agent
+        agent = build_agent()
 
     try:
         result = await agent.run(
