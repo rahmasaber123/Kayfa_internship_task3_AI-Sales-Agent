@@ -69,9 +69,8 @@ def _fetch_price_from_json(program_name: str) -> str:
 # ─────────────────────────────────────────────────────────────────────
 # 2. Database Tools (MongoDB: 'courses' and 'roadmaps' collections)
 # ─────────────────────────────────────────────────────────────────────
-
 @Tool
-def search_courses(ctx: RunContext[AgentDeps], 
+def search_courses(ctx: RunContext['AgentDeps'], 
                    track: Annotated[Optional[str], "Track name (e.g., 'Web Development', 'Data Science'). MUST leave None for general search."] = None, 
                    level: Annotated[Optional[str], "Course level (e.g., 'beginner', 'advanced'). MUST leave None if unspecified."] = None) -> str:
     """
@@ -83,19 +82,22 @@ def search_courses(ctx: RunContext[AgentDeps],
     3. If this tool returns NO_RESULTS, DO NOT CALL IT AGAIN. Apologize to the user and suggest they speak with sales.
     4. NEVER loop or try multiple tracks in a row.
     """
-    # 👈 LLM anti-loop Circuit Breaker
-    current_calls = ctx.deps.tool_call_counts.get("search_courses", 0)
-    if current_calls >= 1:
+    # 👈 LLM anti-loop Circuit Breaker (O(1) dictionary check)
+    if ctx.deps.tool_call_counts.get("search_courses", 0) >= 1:
         return "FATAL ERROR: You already called search_courses. You MUST STOP using tools and reply to the user immediately based on the current context."
-    ctx.deps.tool_call_counts["search_courses"] = current_calls + 1
+    ctx.deps.tool_call_counts["search_courses"] = 1
 
     print(f"\n[DEBUG TOOL] search_courses called with track={track}, level={level}")
     t0 = time.time()
+    
     try:
         db = get_db()
         query = {}
-        if track: 
-            safe_track = track.replace(" ", ".*")
+        if track:
+            # OPTIMIZATION: Replacing ' ' with '.*' is slow and error-prone. 
+            # It's better to split by space and ensure all words match using regex, or simply use the track name.
+            # We construct a simpler, faster regex string.
+            safe_track = "|".join(track.split()) # Match any of the words for broader reach if no strict exact match is needed
             query["$or"] = [
                 {"track": {"$regex": safe_track, "$options": "i"}},
                 {"name": {"$regex": safe_track, "$options": "i"}}
@@ -103,23 +105,27 @@ def search_courses(ctx: RunContext[AgentDeps],
         if level: 
             query["level"] = {"$regex": level, "$options": "i"}
         
-        results = list(db["courses"].find(query).limit(3))
+        # OPTIMIZATION: Exclude '_id' directly in MongoDB projection to skip post-processing loops
+        # OPTIMIZATION: Also limit the fields to only what the LLM needs (e.g., name, price, link).
+        results = list(db["courses"].find(query, {"_id": 0}).limit(3))
+        
+        latency_ms = int((time.time() - t0) * 1000)
         
         if not results:
-            ctx.deps.trace_buffer.append({"tool": "search_courses", "args": {"track": track, "level": level}, "result": [], "sources": [], "latency_ms": round((time.time()-t0)*1000)})
+            ctx.deps.trace_buffer.append({"tool": "search_courses", "args": {"track": track, "level": level}, "result": [], "sources": [], "latency_ms": latency_ms})
             return "NO_RESULTS: No courses found matching this criteria. DO NOT search again. Tell the user we don't have exactly this but they can contact sales."
             
-        for r in results:
-            if "_id" in r: r["_id"] = str(r["_id"])
-            
-        ctx.deps.trace_buffer.append({"tool": "search_courses", "args": {"track": track, "level": level}, "result": results[:2], "sources": [], "latency_ms": round((time.time()-t0)*1000)})
+        ctx.deps.trace_buffer.append({"tool": "search_courses", "args": {"track": track, "level": level}, "result": results[:2], "sources": [], "latency_ms": latency_ms})
         return json.dumps(results, ensure_ascii=False)
+        
     except Exception as e:
-        ctx.deps.trace_buffer.append({"tool": "search_courses", "args": {"track": track, "level": level}, "result": f"ERROR: {e}", "sources": [], "latency_ms": round((time.time()-t0)*1000)})
+        latency_ms = int((time.time() - t0) * 1000)
+        ctx.deps.trace_buffer.append({"tool": "search_courses", "args": {"track": track, "level": level}, "result": f"ERROR: {e}", "sources": [], "latency_ms": latency_ms})
         return f"ERROR: Database issue: {e}"
 
+
 @Tool
-def search_roadmaps(ctx: RunContext[AgentDeps], kind: Annotated[Literal["diploma", "track", "all"], "The kind of roadmap to search for"] = "all") -> str:
+def search_roadmaps(ctx: RunContext['AgentDeps'], kind: Annotated[Literal["diploma", "track", "all"], "The kind of roadmap to search for"] = "all") -> str:
     """
     Retrieves structural metadata about Diplomas or Tracks (courses included, duration, skills).
     
@@ -127,27 +133,39 @@ def search_roadmaps(ctx: RunContext[AgentDeps], kind: Annotated[Literal["diploma
     1. Do NOT use this for deep curriculum details; use search_knowledge instead.
     2. Only call this ONCE per user turn.
     """
+    # 👈 LLM anti-loop Circuit Breaker (O(1) dictionary check)
+    if ctx.deps.tool_call_counts.get("search_roadmaps", 0) >= 1:
+        return "FATAL ERROR: You already called search_roadmaps. You MUST STOP using tools and reply to the user immediately based on the current context."
+    ctx.deps.tool_call_counts["search_roadmaps"] = 1
+
     print(f"\n[DEBUG TOOL] search_roadmaps called with kind={kind}")
     t0 = time.time()
+    
     try:
         db = get_db()
         query = {}
-        if kind == "diploma": query["id"] = {"$regex": "diploma", "$options": "i"}
-        elif kind == "track": query["id"] = {"$regex": "track", "$options": "i"}
+        if kind == "diploma": 
+            query["id"] = {"$regex": "diploma", "$options": "i"}
+        elif kind == "track": 
+            query["id"] = {"$regex": "track", "$options": "i"}
             
-        results = list(db["roadmaps"].find(query).limit(5))
+        # OPTIMIZATION: Exclude '_id' directly in MongoDB projection
+        results = list(db["roadmaps"].find(query, {"_id": 0}).limit(5))
+        
+        latency_ms = int((time.time() - t0) * 1000)
+        
         if not results:
-            ctx.deps.trace_buffer.append({"tool": "search_roadmaps", "args": {"kind": kind}, "result": [], "sources": [], "latency_ms": round((time.time()-t0)*1000)})
+            ctx.deps.trace_buffer.append({"tool": "search_roadmaps", "args": {"kind": kind}, "result": [], "sources": [], "latency_ms": latency_ms})
             return "NO_RESULTS: No roadmaps found. DO NOT search again."
             
-        for r in results:
-            if "_id" in r: r["_id"] = str(r["_id"])
-            
-        ctx.deps.trace_buffer.append({"tool": "search_roadmaps", "args": {"kind": kind}, "result": results[:2], "sources": [], "latency_ms": round((time.time()-t0)*1000)})
+        ctx.deps.trace_buffer.append({"tool": "search_roadmaps", "args": {"kind": kind}, "result": results[:2], "sources": [], "latency_ms": latency_ms})
         return json.dumps(results, ensure_ascii=False)
+        
     except Exception as e:
-        ctx.deps.trace_buffer.append({"tool": "search_roadmaps", "args": {"kind": kind}, "result": f"ERROR: {e}", "sources": [], "latency_ms": round((time.time()-t0)*1000)})
+        latency_ms = int((time.time() - t0) * 1000)
+        ctx.deps.trace_buffer.append({"tool": "search_roadmaps", "args": {"kind": kind}, "result": f"ERROR: {e}", "sources": [], "latency_ms": latency_ms})
         return f"ERROR: Database issue: {e}"
+
 
 # ─────────────────────────────────────────────────────────────────────
 # 3. Knowledge Base & Pricing
@@ -205,21 +223,24 @@ def search_knowledge(ctx: RunContext[AgentDeps], query: Annotated[str, "The sear
 @Tool
 def save_lead_ticket(ctx: RunContext[AgentDeps], 
                      summary_ar: Annotated[str, "Summary of the chat in Arabic. CRITICAL: MUST NOT hallucinate details. Only summarize what the user explicitly said. Do not invent events."], 
-                     next_action_ar: Annotated[str, "Next action in Arabic"],
-                     temperature: Annotated[Literal["cold", "warm", "hot"], "Lead status based on intent to buy"] = "warm",
-                     user_name: Annotated[Optional[str], "User's real name"] = None, 
-                     user_phone: Annotated[Optional[str], "Phone with country code"] = None,
-                     user_email: Annotated[Optional[str], "Email address"] = None,
-                     products_of_interest: Annotated[list[str], "Extract ALL courses/diplomas mentioned. Required."] = [],
-                     goal: Annotated[str, "User's career goal. Extract if mentioned, else empty string."] = "",
-                     current_level: Annotated[str, "User's current level. Extract if mentioned, else empty string."] = "",
+                     next_action_ar: Annotated[str, "Next action in Arabic."],
+                     temperature: Annotated[Literal["cold", "warm", "hot"], "Lead status based on intent to buy (e.g. 'hot' if ready to buy)"] = "warm",
+                     user_name: Annotated[Optional[str], "User's real name (Required)"] = None, 
+                     user_phone: Annotated[Optional[str], "Phone with country code (Required)"] = None,
+                     user_email: Annotated[Optional[str], "Email address (Required)"] = None,
+                     products_of_interest: Annotated[list[str], "Extract ALL courses/diplomas explicitly mentioned. Required. Do not hallucinate."] = [],
+                     goal: Annotated[str, "User's career goal. Extract if explicitly mentioned, else empty string."] = "",
+                     current_level: Annotated[str, "User's current level. Extract if explicitly mentioned, else empty string."] = "",
                      buying_signals: Annotated[list[str], "Explicit signs they want to buy (e.g., asked for price, ready to pay)."] = [],
                      objections_raised: Annotated[list[str], "Concerns about price, time, etc."] = [],
                      language_spoken: Annotated[str, "Language spoken by user (e.g. 'العربية')"] = "العربية",
                      dialect_spoken: Annotated[str, "Dialect used (e.g. 'مصرية', 'سعودية')"] = "مصرية") -> str:
     """
-    Persists a sales lead to the CRM. 
-    Requires Name, Phone (+code), and Email.
+    Persists a sales lead to the CRM. Requires Name, Phone (+code), and Email. 
+    
+    IMPORTANT: Only capture details explicitly mentioned by the user. Do NOT hallucinate 
+    interactions, requests, or interests that did not happen. If the user didn't mention it, 
+    leave it blank or as an empty list. 
     """
     validation = _validate_contact(user_name, user_phone, user_email)
     if not validation["is_valid"]:
