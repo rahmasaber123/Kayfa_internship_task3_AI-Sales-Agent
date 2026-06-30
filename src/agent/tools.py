@@ -204,7 +204,7 @@ def search_knowledge(ctx: RunContext[AgentDeps], query: Annotated[str, "The sear
 
 @Tool
 def save_lead_ticket(ctx: RunContext[AgentDeps], 
-                     summary_ar: Annotated[str, "Summary of the chat in Arabic"], 
+                     summary_ar: Annotated[str, "Summary of the chat in Arabic. CRITICAL: MUST NOT hallucinate details. Only summarize what the user explicitly said. Do not invent events."], 
                      next_action_ar: Annotated[str, "Next action in Arabic"],
                      temperature: Annotated[Literal["cold", "warm", "hot"], "Lead status based on intent to buy"] = "warm",
                      user_name: Annotated[Optional[str], "User's real name"] = None, 
