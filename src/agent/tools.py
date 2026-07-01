@@ -82,7 +82,7 @@ def search_courses(ctx: RunContext['AgentDeps'],
     3. If this tool returns NO_RESULTS, DO NOT CALL IT AGAIN. Apologize to the user and suggest they speak with sales.
     4. NEVER loop or try multiple tracks in a row.
     """
-    # 👈 LLM anti-loop Circuit Breaker (O(1) dictionary check)
+    # LLM anti-loop Circuit Breaker
     if ctx.deps.tool_call_counts.get("search_courses", 0) >= 1:
         return "FATAL ERROR: You already called search_courses. You MUST STOP using tools and reply to the user immediately based on the current context."
     ctx.deps.tool_call_counts["search_courses"] = 1
@@ -94,10 +94,8 @@ def search_courses(ctx: RunContext['AgentDeps'],
         db = get_db()
         query = {}
         if track:
-            # OPTIMIZATION: Replacing ' ' with '.*' is slow and error-prone. 
-            # It's better to split by space and ensure all words match using regex, or simply use the track name.
-            # We construct a simpler, faster regex string.
-            safe_track = "|".join(track.split()) # Match any of the words for broader reach if no strict exact match is needed
+            # FIXED: We use the exact phrase but make it case-insensitive and allow spaces in between
+            safe_track = track.replace(" ", ".*") 
             query["$or"] = [
                 {"track": {"$regex": safe_track, "$options": "i"}},
                 {"name": {"$regex": safe_track, "$options": "i"}}
@@ -105,8 +103,7 @@ def search_courses(ctx: RunContext['AgentDeps'],
         if level: 
             query["level"] = {"$regex": level, "$options": "i"}
         
-        # OPTIMIZATION: Exclude '_id' directly in MongoDB projection to skip post-processing loops
-        # OPTIMIZATION: Also limit the fields to only what the LLM needs (e.g., name, price, link).
+        # Exclude '_id' directly in MongoDB projection to save memory and processing time
         results = list(db["courses"].find(query, {"_id": 0}).limit(3))
         
         latency_ms = int((time.time() - t0) * 1000)
