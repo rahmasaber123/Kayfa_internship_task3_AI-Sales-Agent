@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import streamlit as st
 import asyncio
+import threading
 import time
 import logging
 import markdown as _md_lib
@@ -145,6 +146,11 @@ def get_all_resources():
 
 # Unpack the cached agent
 kb, retriever, db, observer, cached_agent = get_all_resources()
+@st.cache_resource
+def get_loop():
+    loop = asyncio.new_event_loop()
+    threading.Thread(target=loop.run_forever, daemon=True).start()
+    return loop
 
 def _new_session():
     from src.memory.sessions import create_session
@@ -252,6 +258,15 @@ def render_custom_message(role: str, text: str, msg_dir: str = None, is_final: b
 # ─────────────────────────────────────────────────────────────────────
 # 7. Main Loop (Fixed Streaming & Rerun Logic)
 # ─────────────────────────────────────────────────────────────────────
+
+
+@st.cache_resource
+def get_loop():
+    """One persistent event loop for the whole app, so the cached agent's client never outlives its loop."""
+    loop = asyncio.new_event_loop()
+    threading.Thread(target=loop.run_forever, daemon=True).start()
+    return loop
+
 st.title("💬 Kayfa Sales Chat")
 sid_short = st.session_state.get("session_id", "")[:8]
 st.caption(f"🔑 Session: `{sid_short}...`")
@@ -344,12 +359,14 @@ elif len(st.session_state.display) > 0 and st.session_state.display[-1]["role"] 
         status_container = st.empty()
         with status_container.container():
             with st.status(_thinking, expanded=True):
-                reply, new_history, issues = asyncio.run(run_turn(
+                # Submit the turn to the persistent loop instead of asyncio.run()
+                future = asyncio.run_coroutine_threadsafe(run_turn(
                     user_message=last_msg, 
                     deps=deps, 
                     history=st.session_state.history,
-                    agent=cached_agent # 🌟 Pass the cached agent here!
-                ))
+                    agent=cached_agent
+                ), get_loop())
+                reply, new_history, issues = future.result(timeout=120)
                 reply_text = reply.reply
                 
         # 🧨 REMOVE the spinner entirely before starting the stream
