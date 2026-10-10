@@ -15,7 +15,7 @@ async def runtime_context(ctx: RunContext[AgentDeps]) -> str:
         "",
         "## What I know about this user so far",
         f"- Name: {p.name or '(not given yet)'}",
-        f"- Phone: {'(captured)' if p.phone else '(not given yet)'}",
+        f"- Phone: {'(captured)' if p.phone else '(not given yet)'}",         f"- Email: {'(captured)' if p.email else '(not given yet)'}",         f"- Escalation ticket: {p.escalation_ticket_id or 'none'}",
         f"- City/Country: {p.city or '—'} / {p.country or '—'}",
         f"- Goal: {p.goal or '(unknown)'}",
         f"- Current level: {p.current_level or '(unknown)'}",
