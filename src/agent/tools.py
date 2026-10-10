@@ -1,4 +1,5 @@
 import random
+from src.memory.profile import save_profile
 import re
 import json
 import time
