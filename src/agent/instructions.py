@@ -28,7 +28,7 @@ async def runtime_context(ctx: RunContext[AgentDeps]) -> str:
         lines += [
             "",
             f"## ⚠ Competitor detected this turn: **{ctx.deps.competitor_flag}**",
-            "→ Call `handle_competitor_mention` first, then apply Acknowledge → Anchor → Advance.",
+            "→ Acknowledge, anchor on Kayfa's value, then advance.",
         ]
     lines += ["", f"Current UTC time: {datetime.utcnow().isoformat(timespec='seconds')}"]
     return "\n".join(lines)
