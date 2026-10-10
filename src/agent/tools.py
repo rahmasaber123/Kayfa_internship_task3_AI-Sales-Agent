@@ -258,7 +258,10 @@ def save_lead_ticket(ctx: RunContext[AgentDeps],
         buying_signals=buying_signals,
         objections_raised=objections_raised,
     )
-    
+    p = ctx.deps.profile
+    p.name, p.phone, p.email = validation["clean_name"], validation["clean_phone"], validation["clean_email"]
+    p.lead_ticket_id = tid
+    save_profile(p)
     ctx.deps.trace_buffer.append({"tool": "save_lead_ticket", "args": {"temperature": temperature, "summary_ar": summary_ar[:100]}, "result": f"ticket={tid}", "sources": [], "latency_ms": 0})
     return f"SUCCESS: Ticket created with ID {tid}"
 
@@ -277,6 +280,10 @@ def escalate_to_human(ctx: RunContext[AgentDeps],
     Escalates a complaint to the human support team and saves a ticket in the CRM.
     Call this AFTER collecting user_name, user_phone, and user_email from the user.
     """
+    p = ctx.deps.profile
+    if p.escalation_ticket_id:
+        return f"ALREADY_ESCALATED: Ticket {p.escalation_ticket_id} already exists. Do NOT create another; tell the user it's being handled."
+    user_name, user_phone, user_email = user_name or p.name, user_phone or p.phone, user_email or p.email
     validation = _validate_contact(user_name, user_phone, user_email)
     if not validation["is_valid"]:
         return f"MISSING_CONTACT: {validation['error_message']} — Ask the user for these before escalating."
@@ -301,6 +308,9 @@ def escalate_to_human(ctx: RunContext[AgentDeps],
     }
     
     get_db().tickets.insert_one(escalation_ticket)
+    p.escalation_ticket_id = ticket_id
+    p.name, p.phone, p.email = validation["clean_name"], validation["clean_phone"], validation["clean_email"]
+    save_profile(p)
     
     ctx.deps.trace_buffer.append({"tool": "escalate_to_human", "args": {"reason": reason, "summary_ar": summary_ar[:100]}, "result": f"ticket={ticket_id}", "sources": [], "latency_ms": 0})
     return f"SUCCESS: Escalation ticket {ticket_id} created."
