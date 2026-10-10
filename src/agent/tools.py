@@ -19,7 +19,7 @@ def _validate_contact(name: Optional[str], phone: Optional[str], email: Optional
     missing = []
     if not name or len(name.strip()) < 2: missing.append("Name")
     clean_phone = phone.strip().replace(" ", "").replace("-", "") if phone else ""
-    if not clean_phone or not re.match(r"^\+\d{10,15}$", clean_phone): missing.append("Phone (+ Country Code)")
+    if not clean_phone or not re.match(r"^\+[1-9]\d{9,14}$", clean_phone): missing.append("Phone (+ Country Code)")
     if not email or not re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email.strip()): missing.append("Email")
     if missing: return {"is_valid": False, "error_message": f"Required fields missing: {', '.join(missing)}"}
     return {"is_valid": True, "clean_phone": clean_phone, "clean_email": email.strip(), "clean_name": name.strip()}
