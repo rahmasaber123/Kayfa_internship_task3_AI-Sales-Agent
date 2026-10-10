@@ -46,6 +46,14 @@ def add_dynamic_instructions(ctx: RunContext[AgentDeps]) -> str:
         return base_prompt + "\n\n[DYNAMIC CONTEXT FOR THIS TURN]\n" + "\n".join(dynamic_instructions)
     
     return base_prompt
+    if dynamic_instructions:
+        return base_prompt + "\n\n[DYNAMIC CONTEXT FOR THIS TURN]\n" + "\n".join(dynamic_instructions)
+    
+    return base_prompt
+
+from src.agent.instructions import runtime_context   
+_agent.instructions(runtime_context)                 
+
 
 @cache
 def build_agent() -> Agent:
