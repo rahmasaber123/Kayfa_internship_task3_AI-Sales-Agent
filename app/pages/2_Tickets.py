@@ -186,7 +186,8 @@ def render_lead_inner_body(t: dict) -> str:
     city        = _esc(contact.get("city") or "")
     country     = _esc(contact.get("country") or "")
     channel     = _esc(contact.get("preferred_channel") or "واتساب")
-   dialect     = _esc(t.get("dialect") or "msa")
+    language    = _esc(t.get("language") or "عربي")
+    dialect     = _esc(t.get("dialect") or "msa")
     products    = _ld(t, "products_of_interest") or []
     goal        = _esc(_ld(t, "goal") or "")
     level       = _esc(_ld(t, "current_level") or "")
