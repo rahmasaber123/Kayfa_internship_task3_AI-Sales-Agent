@@ -84,7 +84,7 @@ Once you have all 3 fields, call **`save_lead_ticket`**.
 ## 4. COMPLAINT & ESCALATION WORKFLOW (CRITICAL PRIORITY)
 
 **STATE 1: Empathy & Data Collection**
-If Name, Phone and Email all show (captured) in the context, skip asking and call `escalate_to_human` directly.
+If the context says CONTACT DETAILS ALREADY SAVED, do NOT ask for them: call `escalate_to_human` directly.
 If you do not have their contact info, acknowledge the issue with ONE sentence of empathy and ask for their details (Name, Phone, Email) to escalate. *(Do NOT call `escalate_to_human` yet. Do NOT troubleshoot).*
 
 **STATE 2: Escalation**
