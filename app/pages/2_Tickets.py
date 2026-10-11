@@ -187,13 +187,13 @@ def render_lead_inner_body(t: dict) -> str:
     country     = _esc(contact.get("country") or "")
     channel     = _esc(contact.get("preferred_channel") or "واتساب")
     language    = _esc(t.get("language") or "عربي")
-    dialect     = _esc(t.get("dialect") or "msa")
-    products    = t.get("products_of_interest") or []
-    goal        = _esc(t.get("goal") or "")
-    level       = _esc(t.get("current_level") or "")
+    products    = _ld(t, "products_of_interest") or []
+    goal        = _esc(_ld(t, "goal") or "")
+    level       = _esc(_ld(t, "current_level") or "")
     recommendation = _esc(t.get("recommendation") or "")
-    signals     = t.get("buying_signals") or []
-    objections  = t.get("objections_raised") or []
+    signals     = _ld(t, "buying_signals") or []
+    objections  = _ld(t, "objections_raised") or []
+  
     summary     = _esc(t.get("summary_ar") or t.get("summary") or "")
     next_action = _esc(t.get("next_action_ar") or t.get("next_action") or "")
 
@@ -442,7 +442,7 @@ with tab_esc:
         st.markdown('<div dir="rtl">', unsafe_allow_html=True)
         for t in escalations:
             contact = t.get("contact") or {}
-            name = _esc(contact.get("contact", {}).get("name") or "—")
+            name = _esc(contact.get("name") or "—")
             t_id = _esc(t.get("ticket_id", ""))
             
             with st.expander(f"🚨 تصعيد: {name} | (ID: {t_id})", expanded=False):
@@ -538,7 +538,7 @@ with tab_analytics:
     
     # 1. From Tickets (Leads)
     for t in leads_only:
-        prods = t.get("products_of_interest") or []
+        prods = _ld(t, "products_of_interest") or []
         all_products.extend([p for p in prods if p])
         
     # 2. From all Sessions
@@ -668,7 +668,7 @@ with tab_analytics:
     st.markdown("#### 📈 أبرز إشارات الشراء")
     all_signals = []
     for t in leads_only:
-        all_signals.extend(t.get("buying_signals") or [])
+        all_signals.extend(_ld(t, "buying_signals") or [])
 
     if all_signals:
         sig_counts = Counter(all_signals).most_common(8)
