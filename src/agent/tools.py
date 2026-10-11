@@ -278,7 +278,9 @@ def escalate_to_human(ctx: RunContext[AgentDeps],
                       complaint_type: Annotated[Optional[str], "Type of complaint (refund, access, payment, technical, other)"] = None) -> str:
     """
     Escalates a complaint to the human support team and saves a ticket in the CRM.
-    Call this AFTER collecting user_name, user_phone, and user_email from the user.
+        If contact details are already saved, call this IMMEDIATELY and leave user_name,
+    user_phone and user_email empty: the tool fills them from the saved profile.
+    Only ask the user for contact details if this tool returns MISSING_CONTACT.
     """
     p = ctx.deps.profile
     if p.escalation_ticket_id:
