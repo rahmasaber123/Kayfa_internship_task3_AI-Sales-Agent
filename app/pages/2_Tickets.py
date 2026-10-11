@@ -8,6 +8,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from collections import Counter
+def _ld(t, k): return t.get(k) or (t.get("lead_data") or {}).get(k)
 
 # 1. Force both the repo root and the app folder into the system path
 repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
