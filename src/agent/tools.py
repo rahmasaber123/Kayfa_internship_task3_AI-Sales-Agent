@@ -20,6 +20,7 @@ def _validate_contact(name: Optional[str], phone: Optional[str], email: Optional
     if not name or len(name.strip()) < 2: missing.append("Name")
     clean_phone = phone.strip().replace(" ", "").replace("-", "") if phone else ""
     if not clean_phone or not re.match(r"^\+[1-9]\d{9,14}$", clean_phone): missing.append("Phone (+ Country Code)")
+    elif clean_phone.startswith("+20") and not re.match(r"^\+201[0125]\d{8}$", clean_phone): missing.append("Phone (Egyptian mobile: +20 1X XXXX XXXX)")
     if not email or not re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email.strip()): missing.append("Email")
     if missing: return {"is_valid": False, "error_message": f"Required fields missing: {', '.join(missing)}"}
     return {"is_valid": True, "clean_phone": clean_phone, "clean_email": email.strip(), "clean_name": name.strip()}
@@ -222,11 +223,12 @@ def search_knowledge(ctx: RunContext[AgentDeps], query: Annotated[str, "The sear
 def save_lead_ticket(ctx: RunContext[AgentDeps], 
                      summary_ar: Annotated[str, "Summary of the chat in Arabic. CRITICAL: MUST NOT hallucinate details. Only summarize what the user explicitly said. Do not invent events."], 
                      next_action_ar: Annotated[str, "Next action in Arabic."],
+                     products_of_interest: Annotated[list[str], "REQUIRED: every course/diploma the user discussed, by name. Do not hallucinate."],
+                     recommendation_ar: Annotated[str, "REQUIRED: one line in Arabic advising the sales rep how to close this lead."],
                      temperature: Annotated[Literal["cold", "warm", "hot"], "Lead status based on intent to buy (e.g. 'hot' if ready to buy)"] = "warm",
                      user_name: Annotated[Optional[str], "User's real name (Required)"] = None, 
                      user_phone: Annotated[Optional[str], "Phone with country code (Required)"] = None,
                      user_email: Annotated[Optional[str], "Email address (Required)"] = None,
-                     products_of_interest: Annotated[list[str], "Extract ALL courses/diplomas explicitly mentioned. Required. Do not hallucinate."] = [],
                      goal: Annotated[str, "User's career goal. Extract if explicitly mentioned, else empty string."] = "",
                      current_level: Annotated[str, "User's current level. Extract if explicitly mentioned, else empty string."] = "",
                      buying_signals: Annotated[list[str], "Explicit signs they want to buy (e.g., asked for price, ready to pay)."] = [],
@@ -244,20 +246,34 @@ def save_lead_ticket(ctx: RunContext[AgentDeps],
     if not validation["is_valid"]:
         return f"ERROR: {validation['error_message']}"
 
-    tid = _save_lead(
-        session_id=ctx.deps.session_id,
-        language=language_spoken,
-        dialect=dialect_spoken,
-        contact={"name": validation["clean_name"], "phone": validation["clean_phone"], "email": validation["clean_email"]},
-        summary_ar=summary_ar,
-        next_action_ar=next_action_ar,
-        temperature=temperature,
-        products_of_interest=products_of_interest,
-        goal=goal,
-        current_level=current_level,
-        buying_signals=buying_signals,
-        objections_raised=objections_raised,
-    )
+    # Dedupe: same phone or email -> update the existing lead instead of creating a new one
+    db = get_db()
+    existing = db.tickets.find_one({"type": "lead", "$or": [
+        {"contact.phone": validation["clean_phone"]},
+        {"contact.email": validation["clean_email"]}]})
+    if existing:
+        tid = existing["ticket_id"]
+        db.tickets.update_one({"_id": existing["_id"]}, {
+            "$addToSet": {"lead_data.products_of_interest": {"$each": products_of_interest}},
+            "$set": {"summary_ar": summary_ar, "next_action_ar": next_action_ar,
+                     "recommendation": recommendation_ar,
+                     "updated_at": datetime.now(timezone.utc)}})
+    else:
+        tid = _save_lead(
+            session_id=ctx.deps.session_id,
+            language=language_spoken,
+            dialect=dialect_spoken,
+            contact={"name": validation["clean_name"], "phone": validation["clean_phone"], "email": validation["clean_email"]},
+            summary_ar=summary_ar,
+            next_action_ar=next_action_ar,
+            recommendation=recommendation_ar,
+            temperature=temperature,
+            products_of_interest=products_of_interest,
+            goal=goal,
+            current_level=current_level,
+            buying_signals=buying_signals,
+            objections_raised=objections_raised,
+        )
     p = ctx.deps.profile
     p.name, p.phone, p.email = validation["clean_name"], validation["clean_phone"], validation["clean_email"]
     p.lead_ticket_id = tid
@@ -302,7 +318,7 @@ def escalate_to_human(ctx: RunContext[AgentDeps],
             "email": validation["clean_email"]
         },
         "reason": reason,
-        "recommendation": recommendation,
+        "recommendation": recommendation or next_action_ar,
         "summary_ar": summary_ar,
         "next_action_ar": next_action_ar,
         "products_of_interest": products_of_interest or [],
