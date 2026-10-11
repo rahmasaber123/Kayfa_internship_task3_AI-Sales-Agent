@@ -27,6 +27,8 @@ async def runtime_context(ctx: RunContext[AgentDeps]) -> str:
         f"- Lead temperature: **{p.temperature}**",
     ]
     if ctx.deps.competitor_flag:
+            if p.name and p.phone and p.email:
+        lines += ["", "## CONTACT DETAILS ALREADY SAVED. NEVER ask for name, phone or email again. For any complaint, call escalate_to_human immediately."]
         lines += [
             "",
             f"## ⚠ Competitor detected this turn: **{ctx.deps.competitor_flag}**",
